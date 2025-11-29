@@ -14,8 +14,8 @@ export const translateText = async (text, targetLang) => {
     }
 
     try {
-        // Using Gemini 2.0 Flash - Latest model with improved translation quality
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        // Using Gemini 3.0 Pro - The latest state-of-the-art model (Released Nov 2025)
+        const model = genAI.getGenerativeModel({ model: "gemini-3.0-pro" });
         const prompt = `Translate the following text to ${targetLang === 'vi' ? 'Vietnamese' : 'English'}. Only return the translated text, nothing else.\n\nText: "${text}"`;
 
         const result = await model.generateContent(prompt);
