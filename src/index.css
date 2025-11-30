@@ -11,32 +11,18 @@
     }
 }
 
-@layer utilities {
-    .glass {
-        @apply bg-white/80 backdrop-blur-md border-b border-white/20 shadow-sm;
-    }
-
-    .glass-footer {
-        @apply bg-white/80 backdrop-blur-md border-t border-white/20 shadow-[0_-4px_6px_-1px_rgba(0, 0, 0, 0.05)];
-    }
+opacity: 1;
 }
 
-/* Custom Animations */
-@keyframes wave {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
+50% {
+    transform: scale(1.5);
+    opacity: 0.5;
+}
 
-    50% {
-        transform: scale(1.5);
-        opacity: 0.5;
-    }
-
-    100% {
-        transform: scale(2);
-        opacity: 0;
-    }
+100% {
+    transform: scale(2);
+    opacity: 0;
+}
 }
 
 .animate-wave {
