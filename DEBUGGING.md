@@ -54,7 +54,7 @@ Get-Content .env
 
 You should see:
 ```
-VITE_GEMINI_API_KEY=AIzaSyDDgAe16M2_DHE-cM8ER6Tdi58jx4oj5H0
+VITE_GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 ```
 
 ## 🔍 Step 4: Test API Key Directly
@@ -66,7 +66,7 @@ Create a test script to verify the API key works:
 @"
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const API_KEY = 'AIzaSyDDgAe16M2_DHE-cM8ER6Tdi58jx4oj5H0';
+const API_KEY = 'YOUR_GEMINI_API_KEY';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 async function test() {

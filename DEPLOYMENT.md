@@ -1,6 +1,6 @@
 # VoicePal - Google Cloud Run Deployment Guide
 
-This guide walks you through deploying VoicePal to Google Cloud Run step-by-step.
+This guide walks you through deploying VoicePal to Google Cloud Run step-by-step using **PowerShell**.
 
 ## 📋 Prerequisites
 
@@ -13,7 +13,7 @@ This guide walks you through deploying VoicePal to Google Cloud Run step-by-step
 
 ### Step 1: Authenticate with Google Cloud
 
-```bash
+```powershell
 gcloud auth login
 ```
 
@@ -23,38 +23,24 @@ This opens a browser window for you to sign in to your Google account.
 
 Replace `YOUR_PROJECT_ID` with your actual GCP project ID:
 
-```bash
+```powershell
 gcloud config set project YOUR_PROJECT_ID
 ```
 
 To see your project ID, run:
-```bash
+```powershell
 gcloud projects list
 ```
 
 ### Step 3: Enable Required APIs
 
-```bash
+```powershell
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable run.googleapis.com
 gcloud services enable containerregistry.googleapis.com
 ```
 
-## 🚀 Deployment
-
-### Option A: Using PowerShell Script (Recommended - Reads from .env)
-
-Simply run:
-```powershell
-.\deploy.ps1
-```
-
-This script will:
-- Read your API key from the `.env` file
-- Build the container using `cloudbuild.yaml`
-- Deploy to Cloud Run automatically
-
-### Option B: Manual PowerShell Commands
+## 🚀 Deployment (Manual PowerShell)
 
 ### Step 4: Build the Container Image
 
@@ -92,31 +78,16 @@ gcloud run deploy voicepal `
 
 **Expected output:** You'll see a URL like `https://voicepal-xyz-uc.a.run.app`
 
-## ✅ Verification
-
-1. Copy the URL from the deployment output
-2. Open it in your browser
-3. Grant microphone permissions when prompted
-4. Test the hands-free translation by speaking
-
 ## 🔄 Updating the Deployment
 
-When you make code changes, simply run the deploy script again:
+When you make code changes (like upgrading the model), run these commands again:
 
 ```powershell
-.\deploy.ps1
-```
-
-Or manually:
-
-```powershell
-# Extract API key from .env
+# 1. Rebuild
 $apiKey = (Get-Content .env | Select-String "VITE_GEMINI_API_KEY" | ForEach-Object { $_.ToString().Split('=')[1] })
-
-# Rebuild
 gcloud builds submit --config cloudbuild.yaml --substitutions=_VITE_GEMINI_API_KEY="$apiKey"
 
-# Redeploy
+# 2. Redeploy
 $projectId = gcloud config get-value project
 gcloud run deploy voicepal `
   --image "gcr.io/$projectId/voicepal" `
@@ -135,7 +106,7 @@ Cloud Run automatically provides HTTPS, which is required for microphone access.
 
 ### Translation not working
 Verify your API key is correct. Check Cloud Run logs:
-```bash
+```powershell
 gcloud run logs read voicepal --region us-central1
 ```
 
