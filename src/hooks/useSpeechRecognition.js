@@ -44,6 +44,8 @@ const useSpeechRecognition = () => {
         }
     }, []);
 
+    const isListeningRef = useRef(false);
+
     useEffect(() => {
         if (!('webkitSpeechRecognition' in window)) {
             console.error('Speech recognition not supported');
@@ -58,9 +60,10 @@ const useSpeechRecognition = () => {
         recognition.onresult = processResult;
 
         recognition.onend = () => {
-            // Auto-restart if we are supposed to be listening
-            if (isListening) {
+            // Auto-restart if we are supposed to be listening (isListeningRef is true)
+            if (isListeningRef.current) {
                 try {
+                    console.log("Auto-restarting speech recognition...");
                     recognition.start();
                 } catch (e) {
                     // ignore if already started
@@ -73,6 +76,7 @@ const useSpeechRecognition = () => {
         recognition.onerror = (event) => {
             console.error('Speech recognition error', event.error);
             if (event.error === 'not-allowed') {
+                isListeningRef.current = false;
                 setIsListening(false);
             }
         };
@@ -83,33 +87,44 @@ const useSpeechRecognition = () => {
             if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
             recognition.stop();
         };
-    }, [isListening, processResult]);
+    }, [processResult]);
 
-    const startListening = (lang = 'en-US') => {
+    const startListening = useCallback((lang = 'en-US') => {
         if (recognitionRef.current) {
-            // Stop current instance if running to change lang
+            // Update intent
+            isListeningRef.current = true;
+            setIsListening(true);
+
+            // Stop first to apply new language
             recognitionRef.current.stop();
 
-            setTimeout(() => {
-                recognitionRef.current.lang = lang;
-                try {
-                    recognitionRef.current.start();
-                    setIsListening(true);
-                    setText('');
-                    setFinalTranscript('');
-                } catch (e) {
-                    console.error("Start error", e);
-                }
-            }, 100);
-        }
-    };
+            // The onend handler will see isListeningRef=true and auto-restart
+            // But we need to set the language first.
+            // Since stop() is asynchronous, we set the language immediately 
+            // so when it restarts it picks it up? 
+            // Actually, we should set it before start().
 
-    const stopListening = () => {
+            // Better approach: Force a restart sequence
+            setTimeout(() => {
+                if (recognitionRef.current && isListeningRef.current) {
+                    recognitionRef.current.lang = lang;
+                    try {
+                        recognitionRef.current.start();
+                    } catch (e) {
+                        // If already started (race condition), it's fine
+                    }
+                }
+            }, 50);
+        }
+    }, []);
+
+    const stopListening = useCallback(() => {
         if (recognitionRef.current) {
+            isListeningRef.current = false;
             setIsListening(false);
             recognitionRef.current.stop();
         }
-    };
+    }, []);
 
     return {
         text, // Interim text
