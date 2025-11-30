@@ -1,60 +1,185 @@
 # VoicePal Architecture & Data Flow
 
-**VoicePal** is designed as a low-latency, mobile-first translation bridge. It prioritizes "Conversation Flow" over complex UI, ensuring that two people can talk naturally despite the language barrier.
+**VoicePal** is a real-time, multi-user translation platform that enables seamless conversations between people speaking different languages. The architecture supports both single-device practice mode and two-user real-time chat via Firebase.
 
-## 🔄 The Real-Time Data Pipeline
+---
 
-The application follows a linear, event-driven pipeline for every turn of the conversation.
+## 🏗️ Architecture Modes
+
+### Mode 1: Single-Device (Current - Practice Mode)
+A single user practices translation by switching between languages on one device.
+
+### Mode 2: Multi-User Real-Time (Firebase - In Development)
+Two users on separate devices communicate in real-time with live translation sync.
+
+---
+
+## 🔄 Multi-User Data Pipeline (Firebase)
 
 ```mermaid
 sequenceDiagram
-    participant User as 🗣️ Speaker (English)
-    participant App as 📱 VoicePal App
-    participant STT as 🎙️ Browser STT (Web Speech API)
-    participant Gemini as 🧠 Google Gemini (Translation)
-    participant Eleven as 🔊 ElevenLabs (TTS)
-    participant Partner as 👂 Listener (Vietnamese)
+    participant UserA as 🗣️ User A (English)
+    participant PhoneA as 📱 Phone A
+    participant Firebase as 🔥 Firebase Realtime DB
+    participant Gemini as 🧠 Google Gemini
+    participant PhoneB as 📱 Phone B
+    participant UserB as 👂 User B (Vietnamese)
 
-    Note over User, Partner: Turn 1: English to Vietnamese
+    Note over UserA, UserB: Room Creation & Join
+    UserA->>PhoneA: Click "Start Conversation"
+    PhoneA->>Firebase: Create room/{roomId}
+    PhoneA-->>UserA: Show shareable link
+    UserA->>UserB: Share link (SMS/QR/etc)
+    UserB->>PhoneB: Click link
+    PhoneB->>Firebase: Join room/{roomId}
+    Firebase-->>PhoneA: Partner connected
+    Firebase-->>PhoneB: Partner connected
 
-    User->>App: Holds "English" Button & Speaks
-    App->>STT: Streams Audio Input
-    STT-->>App: Returns Transcript ("Hello, how are you?")
-    
-    App->>Gemini: Send Transcript + Context
-    Gemini-->>App: Returns Translation ("Xin chào, bạn khỏe không?")
-    
-    App->>Eleven: Send Translation text
-    Eleven-->>App: Returns Audio Stream (MP3)
-    
-    App->>Partner: Plays Audio (Vietnamese Voice)
+    Note over UserA, UserB: Real-Time Translation Flow
+    UserA->>PhoneA: Speaks "Hello"
+    PhoneA->>PhoneA: Browser STT → Transcript
+    PhoneA->>Gemini: Translate to Vietnamese
+    Gemini-->>PhoneA: "Xin chào"
+    PhoneA->>Firebase: Push message
+    Firebase-->>PhoneB: Sync message
+    PhoneB->>UserB: Display "Hello" + "Xin chào"
+
+    UserB->>PhoneB: Speaks "Cảm ơn"
+    PhoneB->>PhoneB: Browser STT → Transcript
+    PhoneB->>Gemini: Translate to English
+    Gemini-->>PhoneB: "Thank you"
+    PhoneB->>Firebase: Push message
+    Firebase-->>PhoneA: Sync message
+    PhoneA->>UserA: Display "Cảm ơn" + "Thank you"
 ```
+
+---
 
 ## 🧩 Key Components
 
 ### 1. Input Layer: Web Speech API (Zero Latency)
-*   **Why:** We use the browser's native `webkitSpeechRecognition`.
-*   **Benefit:** It runs locally (or via OS optimization), providing instant transcription as you speak. This is faster than uploading audio blobs to a cloud STT service for this specific use case.
-*   **Interaction:** "Push-to-Talk" ensures we only capture intended speech, reducing background noise and "hallucinated" translations.
+*   **Technology:** Browser's native `webkitSpeechRecognition`
+*   **Benefit:** Runs locally with instant transcription
+*   **Mode:** Hands-free continuous listening with Voice Activity Detection (VAD)
+*   **Trigger:** 1.5-second silence automatically finalizes transcript
 
-### 2. Intelligence Layer: Google Gemini (Context Aware)
-*   **Why:** Translation isn't just word-for-word; it's about intent.
-*   **Role:** Gemini receives the text and the *target language*.
-*   **Optimization:** We use a strict prompt: *"Only return the translated text, nothing else."* to minimize token usage and latency.
+### 2. Intelligence Layer: Google Gemini 2.0 Flash
+*   **Role:** Context-aware translation engine
+*   **Model:** `gemini-2.0-flash-exp` (fastest, latest)
+*   **Optimization:** Strict prompt for minimal latency: *"Only return the translated text"*
+*   **Languages:** English ↔ Vietnamese
 
-### 3. Output Layer: ElevenLabs (Human Realism)
-*   **Why:** To make the conversation feel "real," the voice needs emotion and proper intonation.
-*   **Role:** Converts the Vietnamese text into a high-quality audio stream.
-*   **Optimization:** We use the `eleven_multilingual_v2` model which is optimized for speed and accent accuracy.
+### 3. Sync Layer: Firebase Realtime Database
+*   **Purpose:** Real-time message synchronization between devices
+*   **Structure:**
+    ```json
+    {
+      "rooms": {
+        "{roomId}": {
+          "users": {
+            "user_a": { "lang": "en", "connected": true },
+            "user_b": { "lang": "vi", "connected": true }
+          },
+          "messages": [
+            {
+              "id": "msg_001",
+              "sender": "user_a",
+              "text": "Hello",
+              "translation": "Xin chào",
+              "timestamp": 1701234567890
+            }
+          ]
+        }
+      }
+    }
+    ```
+*   **Authentication:** Anonymous auth (no login required)
+*   **Security:** Room-based access control via Firebase rules
 
-## ⏱️ Latency Budget (Estimated)
+### 4. UI Layer: React + Tailwind CSS
+*   **Design:** Glassmorphism with smooth animations
+*   **Features:**
+    - Auto-scroll to latest messages
+    - Connection status indicators
+    - Shareable link generation with QR codes
+    - Language-specific chat bubbles (blue gradient for user, white for partner)
 
+---
+
+## ⏱️ Latency Budget
+
+### Single-Device Mode
 | Step | Action | Estimated Time |
 | :--- | :--- | :--- |
-| 1 | Speech-to-Text (Browser) | ~100ms (Streaming) |
-| 2 | Gemini Translation | ~400-800ms |
-| 3 | ElevenLabs Generation | ~500-900ms |
-| 4 | Network Overhead | ~100ms |
-| **Total** | **End-to-End Delay** | **~1.5 - 2.0 Seconds** |
+| 1 | Speech-to-Text (Browser) | ~500ms |
+| 2 | Gemini Translation | ~800ms |
+| **Total** | **End-to-End** | **~1.3s** |
 
-This ~2-second delay is acceptable for a "Walkie-Talkie" style conversation, allowing for a natural pause between speakers.
+### Multi-User Mode (Firebase)
+| Step | Action | Estimated Time |
+| :--- | :--- | :--- |
+| 1 | Speech-to-Text (Browser) | ~500ms |
+| 2 | Gemini Translation | ~800ms |
+| 3 | Firebase Sync | ~100-200ms |
+| **Total** | **End-to-End** | **~1.5-2.0s** |
+
+This ~2-second delay is acceptable for natural conversation flow, similar to a "walkie-talkie" style interaction.
+
+---
+
+## 🔐 Security & Privacy
+
+**Firebase Security Rules:**
+- Authenticated users only (anonymous auth)
+- Room-based access control
+- No cross-room data access
+- Messages indexed by timestamp for efficient queries
+
+**Data Privacy:**
+- No persistent user accounts
+- Messages stored temporarily in Firebase
+- No audio recording (only text transcripts)
+- End-to-end encryption via HTTPS
+
+---
+
+## 🚀 Future Enhancements
+
+### Phase 1: WebRTC Integration
+- Add peer-to-peer audio streaming
+- Use Firebase for WebRTC signaling
+- Keep text sync as fallback
+- Enable "HD Voice" mode
+
+### Phase 2: Advanced Features
+- Group chat (3+ users)
+- Message history persistence
+- Language auto-detection
+- Offline mode with message queuing
+- Video calling with live captions
+
+---
+
+## 📊 Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | React + Vite | UI framework |
+| Styling | Tailwind CSS | Responsive design |
+| Speech | Web Speech API | Browser-native STT |
+| Translation | Google Gemini 2.0 Flash | AI translation |
+| Sync | Firebase Realtime DB | Real-time messaging |
+| Auth | Firebase Anonymous Auth | User identification |
+| Hosting | Google Cloud Run | Serverless deployment |
+| Build | Docker + Nginx | Containerization |
+
+---
+
+## 🎯 Design Principles
+
+1. **Mobile-First:** Optimized for phone screens and touch interactions
+2. **Low Latency:** Every component chosen for speed
+3. **Reliability:** Firebase provides 99.95% uptime SLA
+4. **Simplicity:** No login, no setup - just share a link
+5. **Scalability:** Firebase handles 100+ concurrent connections on free tier
+6. **Future-Proof:** Architecture supports WebRTC migration
